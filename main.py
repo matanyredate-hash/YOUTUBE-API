@@ -3,44 +3,39 @@ import requests
 
 app = Flask(__name__)
 
-# פונקציה שתופסת את כל סוגי הכתובות כדי למנוע שגיאת Not Found
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def bridge(path):
-    # שליפת הפרמטר שימות המשיח שולחת (מה שהמשתמש הקיש בטלפון)
     user_input = request.args.get('val_name')
     
-    # הודעת בדיקה למקרה שנכנסים לדף בלי להקיש קוד שיר
     if not user_input:
-        return "השרת מחובר בהצלחה! נא להוסיף ?val_name=ID לכתובת כדי לבדוק שיר."
+        return "Server is Live! Please provide a video ID using ?val_name="
 
-    # כתובת ה-API החיצונית - כאן מתבצעת הפנייה להורדה
-    # וודא שזו הכתובת המדויקת שקיבלת מהספק
-    api_url = f"https://tubeapi.org/api/v1/download?id={user_input}"
+    # כתובת ה-API החדשה שביקשת
+    # הערה: ייתכן שהמערכת הזו דורשת מזהה וידאו (slug) ולא לינק מלא
+    api_url = f"https://tube.switch.ch/api/v1/videos/{user_input}"
     
     try:
-        # פנייה לשרת ה-API עם המתנה של מקסימום 10 שניות
-        response = requests.get(api_url, timeout=10)
+        # פנייה ל-API של Switch Tube
+        # בדרך כלל דרוש כאן אישור (Token), ננסה גישה ציבורית קודם
+        r = requests.get(api_url, timeout=10)
         
-        # אם השרת החזיר תשובה תקינה
-        if response.status_code == 200:
-            data = response.json()
+        if r.status_code == 200:
+            data = r.json()
+            # במערכת הזו הלינק נמצא בדרך כלל תחת שדה שנקרא download_url או video_url
+            link = data.get('download_url') or data.get('video_url')
             
-            # ניסיון לשלוף את הלינק מתוך התשובה (בודק כמה שמות אפשריים)
-            song_link = data.get('link') or data.get('url') or data.get('download_url')
-            
-            if song_link:
-                # מחזיר לימות המשיח פקודה לנגן את הלינק שנמצא
-                return f"play_url={song_link}"
+            if link:
+                return f"play_url={link}"
             else:
-                return "read=t-השיר לא נמצא במאגר ה-API"
+                return "read=t-הסרטון נמצא אך לא נמצא קישור להורדה"
+        elif r.status_code == 401:
+            return "read=t-חסרה הרשאה לגשת לשרת הזה"
         else:
-            return f"read=t-שגיאה מהשרת החיצוני קוד {response.status_code}"
+            return f"read=t-שגיאה מהשרת קוד {r.status_code}"
             
     except Exception as e:
-        # במקרה של תקלה טכנית בחיבור
-        return f"read=t-חלה שגיאה בתקשורת: {str(e)}"
+        return f"read=t-תקלה בחיבור: {str(e)}"
 
 if __name__ == "__main__":
-    # הגדרת הפורט המתאים ל-Render
     app.run(host='0.0.0.0', port=10000)
